@@ -89,7 +89,8 @@ class FluxModel(Fittable1DModel):
       evp[:,1] = T
       evp[:,2] = vel
       #evp[:,3] = logn
-      evp[:,3] = lco
+      # Note that we now store log(CO+/CO) in units of 10
+      evp[:,3] = lco*10
       # Peter's Model
       kappa = self.interp(evp) # Peter's models in cm^2/g
       return kappa
