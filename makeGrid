@@ -1,0 +1,133 @@
+#!/usr/bin/env python
+
+import argparse
+parser = argparse.ArgumentParser(description="Generate the model grid from "\
+      "Peter's files")
+parser.add_argument("directory", help="Folder where Peter's models reside")
+parser.add_argument("pkl", help="Name of the pickle file to output")
+parser.add_argument("-xcase", help="Which xcase to load (default 5)", type=int,
+      default=5)
+parser.add_argument("-chem", help="Which chemical species to load (default CO)",
+      default='CO')
+parser.add_argument("-logn", help="Which density to use:  int(log(n))",
+      default=8, type=int)
+parser.add_argument("-wmin", help="Minimum wavelength to grid. Default=1e5AA",
+      type=float, default=2e4)
+parser.add_argument("-wmax", help="Maximum wavelength to grid. Default=1e5AA",
+      type=float, default=3e4)
+parser.add_argument("-v", help="Verbose output",
+      action='store_true')
+args = parser.parse_args()
+
+
+import os, re
+import numpy as np
+from astropy.io import ascii
+from astropy import units as u
+from astropy.constants import h,c,k_B
+import pickle
+
+
+FILENAME_FORMAT = re.compile("^plot\.dat_(\d+)_(\d+)_(\d+\.\d*)_(.+)$")
+
+
+def parse_filename(file):
+   '''Given a model file name, determine its parameters.'''
+
+   filename = os.path.basename(file)
+
+   try:
+      vel, xcase, cocop, chem = FILENAME_FORMAT.match(filename).groups()
+      vel, xcase, cocop = float(vel), int(xcase), float(cocop)
+   except:
+      return None
+
+   return vel, xcase, cocop, chem
+
+
+def read_models_file(file):
+   '''Read in the data from a single file.'''
+   submodels = map(tuple, 
+         np.genfromtxt(file, skip_header=7615, max_rows=2, unpack=True)[1:])
+   wave, *opac = map(tuple, 
+         np.genfromtxt(file, skip_header=7618, skip_footer=1, unpack=True))
+
+   return wave, dict(zip(submodels, opac))
+
+
+def readModels(pkl, directory='.', xcase=5, chem='CO', verbose=False,
+      wmin=1e4, wmax=3e4, logn=8):
+   '''Given a directory, load all the models into a grid and save as a pickle
+   file'''
+   models = []
+   temps = []
+   vels = []
+   #lns = []
+   lcos = []
+   # load 'em up from the directory
+   files = [f"{directory}/{filename}" \
+            for filename in os.listdir(directory)]
+   for fil in files:
+      res = parse_filename(fil)
+      if res is None:
+         continue
+      vel,xcase,cocop,chem = res
+      vel = int(vel)
+      lco = int(10*np.log10(cocop))
+      if xcase != xcase or chem != chem:
+         continue
+      if verbose:
+         print('Reading {}: vel={}, log(cocop)={}, chem={}'.format(
+            fil,vel,lco,chem))
+      wave, opacs = read_models_file(fil)
+      wave = np.array(wave)
+      for (t,n) in opacs:
+         if int(np.log10(n)) == logn:
+            vels.append(vel)
+            lcos.append(lco)
+            temps.append(int(t))
+            #lns.append(int(np.log10(n)))
+            models.append(np.array(opacs[(t,n)]))
+   if len(models) == 0:
+      raise IOError("Error: No model files found in {}".format(directory))
+
+
+   # now grid things up
+   # Trim the model wavelengths to just cover the observed range
+   gids = np.greater(wave, wmin) & np.less(wave, wmax)
+
+   # Construct the parameter grid
+   wave = wave[gids]    # models defined at these wavelengths
+   
+   g_temps = list(set(temps))
+   g_temps.sort()
+   g_vels = list(set(vels))
+   g_vels.sort()
+   #g_lns = list(set(lns))
+   #g_lns.sort()
+   g_lcos = list(set(lcos))
+   g_lcos.sort()
+
+   # Construct the model grid and fill it in
+   grid_shape = (wave.shape[0], len(g_temps),len(g_vels), len(g_lcos))
+   grid = np.zeros(grid_shape) - 999
+   for idx,opac in enumerate(models):
+      i = g_temps.index(temps[idx])
+      j = g_vels.index(vels[idx])
+      #k = g_lns.index(lns[idx])
+      k = g_lcos.index(lcos[idx])
+      # We just need the functional form, since the model re-scales
+      # it anyway, so we can scale by value at wave[0]
+      #bb = np.power(wave, -5)/(np.exp(h*c/k_B/(wave*u.AA)/(temps[idx]*1000*u.K))-1)
+      #n_nu = bb.value*opac[gids]
+      n_nu = opac[gids]
+      grid[:,i,j,k] = n_nu
+
+   print("Grid complete: ", np.sum(np.greater(grid, -900)), len(grid.ravel()))
+   with open(pkl, 'wb') as fout:
+      #pickle.dump((wave,grid,g_temps,g_vels,g_lns,g_lcos), fout)
+      pickle.dump((wave,grid,g_temps,g_vels,g_lcos), fout)
+
+readModels(args.pkl, args.directory, args.xcase, args.chem, args.v,
+      args.wmin, args.wmax, args.logn)
+
