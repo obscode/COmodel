@@ -61,8 +61,8 @@ class FluxModel(Fittable1DModel):
       self.T.max = self.interp.grid[1].max()
       self.vel.min = self.interp.grid[2].min()
       self.vel.max = self.interp.grid[2].max()
-      self.lco.min = self.interp.grid[3].min()
-      self.lco.max = self.interp.grid[3].max()
+      self.lco.min = self.interp.grid[3].min()/10
+      self.lco.max = self.interp.grid[3].max()/10
        
    def BB(self, wave, T):
       ''' Return the Blakcbody (F_\lambda) for temperature T'''
