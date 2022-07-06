@@ -195,16 +195,17 @@ def plotCorner(samples, meds, model, outfile="corner.pdf"):
    labs = {'T':"$T$", "vel":"$v$", "lco":r"$\log(CO_+/CO)$",
          'z':"$z$", "b":"$b$", 'A':"$M_{CO}$"}
    
-   f = corner.corner(samples, #labels=model.variables,
+   f = corner.corner(np.transpose(samples, (1,0,2)), #labels=model.variables,
          labelpad=0.2, truths=meds, label_kwargs={'fontsize':16},
          labels=[labs[var] for var in model.variables])
    plt.subplots_adjust(bottom=0.1, left=0.1)
    f.savefig(outfile)
    
-def plotFit(wave, flux, meds, model, outfile='flux_fit.pdf'):
+def plotFit(wave, flux, eflux, meds, model, outfile='flux_fit.pdf'):
 
    fig,ax = plt.subplots()
    ax.plot(wave, flux)
+   ax.fill_between(wave, flux-eflux, flux+eflux, facecolor='k', alpha=0.1)
    model.set_pars(meds)
    ax.plot(wave, model(wave))
    ax.set_xlabel('Wavelength (Anstroms)')
@@ -234,6 +235,8 @@ if __name__ == "__main__":
          default=500, type=int)
    parser.add_argument('-filt', help="Filter out 'lost' chains?",
          action="store_true")
+   parser.add_argument('-box', help="Size of the boxcar smoother in pixels",
+         type=int, default=11)
 
    args = parser.parse_args()
 
@@ -246,8 +249,9 @@ if __name__ == "__main__":
    wave,flux = tab['wave'].value, tab['flux'].value/args.scale
    gids = np.greater(wave, args.wmin) & np.less(wave, args.wmax)
    wave,flux = wave[gids],flux[gids]
-   mflux = np.convolve(flux, np.ones(101)/101, mode='same')
-   eflux = np.sqrt(np.convolve((flux-mflux)**2, np.ones(101)/101, mode='same'))
+   mflux = np.convolve(flux, np.ones(args.box)/args.box, mode='same')
+   eflux = np.sqrt(np.convolve((flux-mflux)**2, np.ones(args.box)/args.box, 
+      mode='same'))
 
    model = FluxModel(args.grid, scale=args.scale)
    
@@ -289,7 +293,7 @@ if __name__ == "__main__":
    # Plot the raw traces (no burn removed and 'A' instead of M_CO
    plotTraces(samples, model, outfile="traces.pdf")
    meds = np.median(samples[args.burn:,:,:], axis=(0,1))
-   plotFit(wave, flux, meds, model, outfile='flux_fit.pdf')
+   plotFit(wave, flux, eflux, meds, model, outfile='flux_fit.pdf')
 
    # Now replace 'A' with M_CO
    idx = model.variables.index('A')
