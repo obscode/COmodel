@@ -28,9 +28,9 @@ class FluxModel(Fittable1DModel):
    T = Parameter(default=3000)              # Temperature in 10^3 K
    vel = Parameter(default=2000)            # velocity in 10^3 km/s
    lco = Parameter(default=-2.99)           # log(CO+/CO)
-   A = Parameter(default=4000)              # Amplitude later converted to mass
+   A = Parameter(default=1)                 # Amplitude later converted to mass
    z = Parameter(default=0.00113, bounds=(0, 0.005)) # Extra redshift
-   b = Parameter(default=2, bounds=(0,10))  # R-J continuum in 10^-15 
+   b = Parameter(default=1, bounds=(0,10))  # R-J continuum in 10^-15 
 
    def __init__(self, pkl, verbose=False, dist=3.4, scale=1, *args, **kwargs):
       '''Initialize a CO model instance.
@@ -288,10 +288,8 @@ if __name__ == "__main__":
 
    # Plot the raw traces (no burn removed and 'A' instead of M_CO
    plotTraces(samples, model, outfile="traces.pdf")
-
-   # Get into a more covenient shape (chain, iteration, paramter)
-   #samples = np.transpose(samples, (1,0,2))
-   #blobs = np.transpose(blobs, (1,0,2))
+   meds = np.median(samples[args.burn:,:,:], axis=(0,1))
+   plotFit(wave, flux, meds, model, outfile='flux_fit.pdf')
 
    # Now replace 'A' with M_CO
    idx = model.variables.index('A')
@@ -321,7 +319,6 @@ if __name__ == "__main__":
           axis=(1,0))
    
    plotCorner(gsamples, meds, model, outfile="corner.pdf")
-   plotFit(wave, flux, meds, model, outfile='flux_fit.pdf')
 
    with open("best_fit.txt", 'w') as fout:
       for i,par in enumerate(model.variables):
