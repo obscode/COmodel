@@ -107,7 +107,7 @@ class FluxModel(Fittable1DModel):
       hmod = 2*np.pi*self.BB(zwave, T)*kappa/(4*np.pi*(self.dist)**2)
       hmod = hmod*conv    # Now in FLAM/Msun
 
-      self.hscale = sum(hmod)        # This removes the T^4 dependence
+      self.hscale = hmod.max()       # This removes the T^4 dependence
       hmod = hmod/self.hscale        # We'll need this scale later to convert
                                      # back to real physical units
       
